@@ -9,3 +9,4 @@ youtube-transcript-api
 requests
 beautifulsoup4
 urllib3
+transformers
