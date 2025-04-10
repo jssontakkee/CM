@@ -6,9 +6,9 @@ from langchain.chains.summarize import load_summarize_chain
 from langchain_community.document_loaders import UnstructuredURLLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.schema import Document
-# Corrected import for youtube-transcript-api exceptions
+# Corrected import for youtube-transcript-api exceptions (v1.0.3 uses NoTranscriptFound)
 from youtube_transcript_api import YouTubeTranscriptApi
-from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptAvailable
+from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFound # CHANGED HERE
 import re
 import urllib3
 import time
@@ -19,8 +19,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # --- IMPORTANT ---
 # Replace with your actual Groq API key before deployment if needed
-# Keep the placeholder if you intend for users to enter it, but the code currently uses this variable directly.
-GROQ_API_KEY = "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"  # Replace this with your actual API key
+GROQ_API_KEY = "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" # Replace this with your actual API key
 
 # Define function to extract YouTube ID from URL
 def extract_youtube_id(url):
@@ -36,7 +35,7 @@ def extract_youtube_id(url):
             return match.group(1)
     return None
 
-# Function to get YouTube transcript with improved error handling and corrected exceptions
+# Function to get YouTube transcript with corrected exception name
 def get_youtube_transcript(video_id):
     try:
         # Get the list of available transcripts
@@ -52,7 +51,7 @@ def get_youtube_transcript(video_id):
             """, unsafe_allow_html=True)
             fetched = transcript.fetch()
             return " ".join([t['text'] for t in fetched])
-        except NoTranscriptAvailable:
+        except NoTranscriptFound: # CHANGED HERE
             # If English not available, try Hindi
             try:
                 st.markdown("""
@@ -80,7 +79,7 @@ def get_youtube_transcript(video_id):
                 </div>
                 """, unsafe_allow_html=True)
                 return " ".join([t['text'] for t in translated_transcript])
-            except NoTranscriptAvailable:
+            except NoTranscriptFound: # CHANGED HERE
                 # If neither English nor Hindi available, try any available language
                 st.markdown("""
                 <div class="info-message">
@@ -153,7 +152,7 @@ def get_youtube_transcript(video_id):
         </div>
         """, unsafe_allow_html=True)
         return None
-    except NoTranscriptAvailable:
+    except NoTranscriptFound: # CHANGED HERE
          # This case might be hit if list_transcripts works but find_transcript fails unexpectedly later
          st.markdown("""
             <div class="error-message">
@@ -189,7 +188,7 @@ st.set_page_config(
     layout="wide",
 )
 
-# Custom CSS for modern styling with glassmorphic effect
+# Custom CSS for modern styling with glassmorphic effect (keeping CSS the same)
 st.markdown("""
 <style>
     /* Main background with gradient */
@@ -581,6 +580,8 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# --- Rest of the Streamlit UI Code (Identical to previous version) ---
+
 # App header with modern design
 st.markdown("""
 <div class="app-header">
@@ -641,9 +642,7 @@ with col2:
     """, unsafe_allow_html=True)
 
     # Display API status
-    # Basic check if the key looks like a Groq key (starts with gsk_)
-    # Avoid displaying the key itself
-    is_api_key_present = GROQ_API_KEY and GROQ_API_KEY != "YOUR_GROQ_API_KEY_HERE" # Check if it's not empty or the placeholder
+    is_api_key_present = GROQ_API_KEY and GROQ_API_KEY != "YOUR_GROQ_API_KEY_HERE"
     is_api_key_plausible = is_api_key_present and GROQ_API_KEY.startswith("gsk_")
 
     if not is_api_key_present:
@@ -660,7 +659,7 @@ with col2:
             <span style="color: white; opacity: 0.9;">Groq API keys usually start with 'gsk_'</span>
         </div>
         """, unsafe_allow_html=True)
-    else: # Key is present and looks plausible
+    else:
         st.markdown("""
         <div class="success-message" style="background-color: rgba(223, 240, 216, 0.4);">
             <span style="font-weight: bold; color: white;">✅ API Ready</span><br>
@@ -697,8 +696,6 @@ with col1:
             if is_youtube:
                 icon = "🎬"
                 url_type = "YouTube Video"
-
-                # Extract and display YouTube video ID
                 video_id = extract_youtube_id(url)
                 if video_id:
                     st.markdown(f"""
@@ -737,7 +734,6 @@ with col1:
     st.markdown('</div>', unsafe_allow_html=True)
 
     # Define summarization prompts dynamically based on slider
-    # Note: Prompt engineering can significantly impact quality. These are basic examples.
     if max_tokens <= 400:
         map_template = "Briefly summarize the key points of this section:\n\n{text}\n\nCONCISE SUMMARY:"
         combine_template = "Combine these brief summaries into a single, concise overall summary of 2-3 sentences:\n\n{text}\n\nFINAL CONCISE SUMMARY:"
@@ -795,7 +791,7 @@ with col1:
                     <div class="progress" style="width: 5%;"></div>
                 </div>
                 """, unsafe_allow_html=True)
-                progress_bar = st.empty() # Placeholder for updating progress bar
+                progress_bar = st.empty()
 
                 try:
                     # 1. Initialize LLM
@@ -807,17 +803,17 @@ with col1:
                         <div class="progress" style="width: 15%;"></div>
                     </div>
                     """, unsafe_allow_html=True)
-                    time.sleep(0.5)  # Visual delay
+                    time.sleep(0.5)
 
                     llm = ChatGroq(
                         model=model_name,
                         groq_api_key=GROQ_API_KEY,
-                        max_tokens=max_tokens # Control output length
+                        max_tokens=max_tokens
                     )
 
                     # 2. Process content based on URL type
                     is_youtube = "youtube" in url or "youtu.be" in url
-                    docs = None # Initialize docs
+                    docs = None
 
                     if is_youtube:
                         progress_bar.markdown("""
@@ -838,9 +834,7 @@ with col1:
                             """, unsafe_allow_html=True)
                             st.stop()
 
-                        # --- Call the updated get_youtube_transcript function ---
                         transcript = get_youtube_transcript(video_id)
-                        # --- ---
 
                         if transcript:
                             progress_bar.markdown(f"""
@@ -853,8 +847,7 @@ with col1:
                             """, unsafe_allow_html=True)
                             docs = [Document(page_content=transcript, metadata={"source": url})]
                         else:
-                            # Error messages are now handled inside get_youtube_transcript
-                            st.stop() # Stop if transcript fetching failed
+                            st.stop()
 
                     else: # Website
                         progress_bar.markdown("""
@@ -869,11 +862,11 @@ with col1:
                         try:
                             loader = UnstructuredURLLoader(
                                 urls=[url],
-                                ssl_verify=False, # Keep SSL verification off as in original code
+                                ssl_verify=False,
                                 headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"}
                             )
                             loaded_docs = loader.load()
-                            if loaded_docs and loaded_docs[0].page_content: # Check if content exists
+                            if loaded_docs and loaded_docs[0].page_content:
                                 docs = loaded_docs
                                 total_chars_loaded = sum(len(d.page_content) for d in docs)
                                 progress_bar.markdown(f"""
@@ -911,7 +904,7 @@ with col1:
                         """, unsafe_allow_html=True)
 
                         text_splitter = RecursiveCharacterTextSplitter(
-                            chunk_size=3000, # Adjust if needed based on model context limits & performance
+                            chunk_size=3000,
                             chunk_overlap=200
                         )
                         split_docs = text_splitter.split_documents(docs)
@@ -973,34 +966,32 @@ with col1:
                                 chain_type="map_reduce",
                                 map_prompt=map_prompt,
                                 combine_prompt=combine_prompt,
-                                verbose=False # Set to True for debugging map/reduce steps
+                                verbose=False
                             )
                         elif chain_type == "stuff":
-                            # Basic check for 'stuff' method length limit (very approximate)
                             total_chars = sum(len(d.page_content) for d in split_docs)
-                            est_tokens = total_chars / 4 # Rough estimate
-                            context_window = 8192 if model_name == "llama3-8b-8192" else 32768 if model_name == "mixtral-8x7b-32768" else 8192 # Gemma approx
+                            est_tokens = total_chars / 4
+                            context_window = 8192 if model_name == "llama3-8b-8192" else 32768 if model_name == "mixtral-8x7b-32768" else 8192
 
-                            if est_tokens > (context_window * 0.85): # Leave buffer
+                            if est_tokens > (context_window * 0.85):
                                 st.warning(f"Content might be too long (~{est_tokens:.0f} tokens) for the 'stuff' method with {model_name}'s context window (~{context_window}). Summarization might fail or be truncated. Consider 'map_reduce' or 'refine'.")
 
                             chain = load_summarize_chain(
                                 llm,
                                 chain_type="stuff",
-                                prompt=map_prompt, # 'stuff' uses a single prompt
+                                prompt=map_prompt,
                                 verbose=False
                             )
                         else:  # refine
                             chain = load_summarize_chain(
                                 llm,
                                 chain_type="refine",
-                                question_prompt=map_prompt, # Refine uses prompts differently
+                                question_prompt=map_prompt,
                                 refine_prompt=combine_prompt,
                                 verbose=False
                             )
 
                         try:
-                            # Execute the chain within a spinner
                             with st.spinner(f"🤖 AI ({model_name}) is working on the summary..."):
                                 start_time = time.time()
                                 result = chain.invoke({"input_documents": split_docs})
@@ -1019,7 +1010,7 @@ with col1:
                             # Display the summary
                             st.markdown('<div class="summary-container">', unsafe_allow_html=True)
                             st.subheader("📝 Generated Summary")
-                            st.markdown(result["output_text"]) # Use markdown for better formatting
+                            st.markdown(result["output_text"])
 
                             # Add metadata
                             summary_word_count = len(result["output_text"].split())
@@ -1040,10 +1031,9 @@ with col1:
                                 <span>❌ Summarization failed: {str(e)}</span>
                             </div>
                             """, unsafe_allow_html=True)
-                            st.error("Suggestions: Try a different model (e.g., one with a larger context window like Mixtral if using 'stuff' on long text), use the 'map_reduce' or 'refine' method, shorten the summary length, or check the input URL content.")
+                            st.error("Suggestions: Try a different model, use 'map_reduce'/'refine', shorten summary length, or check input content.")
 
                 except Exception as e:
-                    # Catch errors happening before summarization (e.g., LLM init)
                     st.markdown(f"""
                     <div class="error-message">
                         <span>❌ An unexpected error occurred during setup: {str(e)}</span>
