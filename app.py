@@ -8,7 +8,7 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.schema import Document
 # Corrected import for youtube-transcript-api exceptions (v1.0.3 uses NoTranscriptFound)
 from youtube_transcript_api import YouTubeTranscriptApi
-from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFound # CHANGED HERE
+from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFound
 import re
 import urllib3
 import time
@@ -51,7 +51,7 @@ def get_youtube_transcript(video_id):
             """, unsafe_allow_html=True)
             fetched = transcript.fetch()
             return " ".join([t['text'] for t in fetched])
-        except NoTranscriptFound: # CHANGED HERE
+        except NoTranscriptFound:
             # If English not available, try Hindi
             try:
                 st.markdown("""
@@ -79,7 +79,7 @@ def get_youtube_transcript(video_id):
                 </div>
                 """, unsafe_allow_html=True)
                 return " ".join([t['text'] for t in translated_transcript])
-            except NoTranscriptFound: # CHANGED HERE
+            except NoTranscriptFound:
                 # If neither English nor Hindi available, try any available language
                 st.markdown("""
                 <div class="info-message">
@@ -152,8 +152,7 @@ def get_youtube_transcript(video_id):
         </div>
         """, unsafe_allow_html=True)
         return None
-    except NoTranscriptFound: # CHANGED HERE
-         # This case might be hit if list_transcripts works but find_transcript fails unexpectedly later
+    except NoTranscriptFound:
          st.markdown("""
             <div class="error-message">
                 <span>❌ No transcript was found for this video, even after checking available languages.</span>
@@ -162,22 +161,32 @@ def get_youtube_transcript(video_id):
          return None
     except Exception as e:
         # Catch-all for other potential errors (network issues, API errors)
-        st.markdown(f"""
-        <div class="error-message">
-            <span>❌ An unexpected error occurred while fetching transcripts: {str(e)}</span>
-        </div>
-        """, unsafe_allow_html=True)
-        # Optionally try to list languages from the error if it follows the known pattern
-        if "For this video" in str(e):
-             error_msg = str(e)
-             available_langs = re.findall(r'\* ([a-z\-]+) \("([^"]+)"\)', error_msg)
-             if available_langs:
-                 lang_codes = [code for code, name in available_langs]
-                 st.markdown(f"""
-                 <div class="info-message">
-                    <span>ℹ️ Detected available language codes in error: {', '.join(lang_codes)}</span>
-                 </div>
-                 """, unsafe_allow_html=True)
+        # Check if it's the known IP block error
+        if 'Could not retrieve a transcript for the video' in str(e) and 'YouTube is blocking requests from your IP' in str(e):
+             st.markdown("""
+            <div class="error-message">
+                <span>❌ Failed to get YouTube transcript. YouTube is likely blocking requests from the server's IP address (common for cloud hosting like Streamlit Cloud). Website summarization should still work.</span><br>
+                <span>ℹ️ Error Detail: {e}</span>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            # Display other unexpected errors
+            st.markdown(f"""
+            <div class="error-message">
+                <span>❌ An unexpected error occurred while fetching transcripts: {str(e)}</span>
+            </div>
+            """, unsafe_allow_html=True)
+            # Optionally try to list languages from the error if it follows the known pattern
+            if "For this video" in str(e):
+                 error_msg = str(e)
+                 available_langs = re.findall(r'\* ([a-z\-]+) \("([^"]+)"\)', error_msg)
+                 if available_langs:
+                     lang_codes = [code for code, name in available_langs]
+                     st.markdown(f"""
+                     <div class="info-message">
+                        <span>ℹ️ Detected available language codes in error: {', '.join(lang_codes)}</span>
+                     </div>
+                     """, unsafe_allow_html=True)
         return None
 
 
@@ -188,7 +197,7 @@ st.set_page_config(
     layout="wide",
 )
 
-# Custom CSS for modern styling with glassmorphic effect (keeping CSS the same)
+# Custom CSS for modern styling with glassmorphic effect
 st.markdown("""
 <style>
     /* Main background with gradient */
@@ -356,13 +365,18 @@ st.markdown("""
         backdrop-filter: blur(8px);
         border: 1px solid rgba(255, 255, 255, 0.18);
         margin-top: 20px;
-        color: black; /* Make summary text black */
+        color: black; /* Default text color for container */
     }
-    .summary-container p, .summary-container li {
-        color: black; /* Ensure paragraph/list text is black */
+    /* --- CORRECTED CSS FOR SUMMARY TEXT VISIBILITY --- */
+    .summary-container p,
+    .summary-container li,
+    .summary-container span, /* Target spans which markdown might render */
+    .summary-container div /* Target divs which markdown might render */
+    {
+        color: black !important; /* Force color to black, overriding defaults */
     }
     .summary-container h3 {
-        color: black; /* Make subheader black */
+        color: black !important; /* Ensure subheader is black */
     }
     .summary-container hr {
         border-top: 1px solid rgba(0, 0, 0, 0.2);
@@ -370,6 +384,8 @@ st.markdown("""
     .summary-container p[style*="text-align: right"] {
         color: #555 !important; /* Make metadata text darker grey */
     }
+    /* --- END OF CORRECTION --- */
+
 
     .card {
         border-radius: 16px;
@@ -563,8 +579,8 @@ st.markdown("""
 
     /* Specific overrides for readability */
     div[data-testid="stForm"] label, /* Form labels */
-    div[data-testid="stMarkdownContainer"] p, /* General markdown text */
-    div[data-testid="stMarkdownContainer"] li, /* General markdown lists */
+    div[data-testid="stMarkdownContainer"] p, /* General markdown text (unless overridden below) */
+    div[data-testid="stMarkdownContainer"] li, /* General markdown lists (unless overridden below) */
     .card ul li, /* Tips list */
     .card h4, /* Tips header */
     label[data-testid="stWidgetLabel"] p /* Widget labels like slider, selectbox */
@@ -674,14 +690,14 @@ with col2:
     <div class="card">
         <h4>💡 Tips</h4>
         <ul>
-            <li><b>YouTube videos:</b> Works with any public video that has captions</li>
-            <li><b>Websites:</b> Best results with news articles, blog posts and documentation</li>
-            <li><b>Map-reduce:</b> Best for longer content with multiple sections</li>
-            <li><b>Stuff method:</b> Fastest for shorter content (check context limits)</li>
-            <li><b>Refine method:</b> Good balance for accuracy on longer texts</li>
+            <li><b>YouTube videos:</b> May fail on Streamlit Cloud due to YouTube blocking IPs. Works better locally.</li>
+            <li><b>Websites:</b> Best results with news articles, blog posts and documentation.</li>
+            <li><b>Map-reduce:</b> Best for longer content with multiple sections.</li>
+            <li><b>Stuff method:</b> Fastest for shorter content (check context limits).</li>
+            <li><b>Refine method:</b> Good balance for accuracy on longer texts.</li>
         </ul>
     </div>
-    """, unsafe_allow_html=True)
+    """, unsafe_allow_html=True) # Added note about YouTube issue
 
 with col1:
     # URL input with better styling
@@ -834,7 +850,7 @@ with col1:
                             """, unsafe_allow_html=True)
                             st.stop()
 
-                        transcript = get_youtube_transcript(video_id)
+                        transcript = get_youtube_transcript(video_id) # Error handling is now inside this function
 
                         if transcript:
                             progress_bar.markdown(f"""
@@ -847,6 +863,7 @@ with col1:
                             """, unsafe_allow_html=True)
                             docs = [Document(page_content=transcript, metadata={"source": url})]
                         else:
+                            # Stop execution if transcript fetching failed (error shown inside function)
                             st.stop()
 
                     else: # Website
@@ -939,6 +956,7 @@ with col1:
                         with st.expander("📄 Content Preview (First 500 Characters)"):
                              st.markdown('<div class="content-preview">', unsafe_allow_html=True)
                              preview_text = docs[0].page_content[:500]
+                             # Use st.text for plain preview to avoid nested markdown issues
                              st.text(preview_text + "..." if len(docs[0].page_content) > 500 else preview_text)
                              st.markdown('</div>', unsafe_allow_html=True)
 
@@ -1010,6 +1028,7 @@ with col1:
                             # Display the summary
                             st.markdown('<div class="summary-container">', unsafe_allow_html=True)
                             st.subheader("📝 Generated Summary")
+                            # Use st.markdown for output, relying on corrected CSS
                             st.markdown(result["output_text"])
 
                             # Add metadata
@@ -1019,10 +1038,10 @@ with col1:
 
                             st.markdown(f"""
                             <hr>
-                            <p style="text-align: right; font-size: 0.9rem; color: #555;">
+                            <p style="text-align: right; font-size: 0.9rem; color: #555 !important;">
                                 ~{summary_word_count} words | {content_type_display} | Model: {model_name} | Method: {chain_type} | Max Tokens: {max_tokens} | Generated: {gen_time_str}
                             </p>
-                            """, unsafe_allow_html=True)
+                            """, unsafe_allow_html=True) # Added !important to metadata color too
                             st.markdown('</div>', unsafe_allow_html=True)
 
                         except Exception as e:
